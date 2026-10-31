@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <Nullable>disable</Nullable>
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="CesiumLoader.SDK">
+      <HintPath>$(CesiumSdkDir)CesiumLoader.SDK.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Compile Include="../../QueryController.cs" Link="QueryController.cs" />
+    <Compile Include="../../ServiceAddress.cs" Link="ServiceAddress.cs" />
+    <Compile Include="../../HandStripModel.cs" Link="HandStripModel.cs" />
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>ModSourceRoot</_Parameter1>
+      <_Parameter2>$(MSBuildProjectDirectory)/../..</_Parameter2>
+    </AssemblyAttribute>
+    <Reference Include="AstralParty.Runtime"><HintPath>$(GameRefsDir)AstralParty.Runtime.dll</HintPath><Private>true</Private></Reference>
+    <Reference Include="Google.Protobuf.Runtime"><HintPath>$(GameRefsDir)Google.Protobuf.Runtime.dll</HintPath><Private>true</Private></Reference>
+    <Reference Include="UniTask"><HintPath>$(GameRefsDir)UniTask.dll</HintPath><Private>true</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameRefsDir)UnityEngine.CoreModule.dll</HintPath><Private>true</Private></Reference>
+  </ItemGroup>
+</Project>

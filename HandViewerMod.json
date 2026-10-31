@@ -1,0 +1,10 @@
+{
+  "id": "HandViewerMod",
+  "name": "手牌查看",
+  "version": "1.1.0",
+  "author": "CesiumLoader",
+  "description": "升星右侧三角展开四人独立手牌条，仅展开可见时用观战码查询；可配置自动收回，同牌角标计数",
+  "permissions": 641,
+  "sdkVersion": "2.8.6",
+  "dependencies": []
+}

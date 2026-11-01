@@ -103,6 +103,10 @@ namespace HandViewerMod
     }
     public sealed class HandQueryController : IDisposable
     {
+        /// <summary>Only reported while no hand strip is expanded; an expanded strip never shows this.</summary>
+        public const string CollapsedStatus = "手牌已收起，暂停查询";
+        const string WaitingRoomStatus = "等待对局观战码";
+        const string WaitingRefreshStatus = "等待查询";
         readonly Func<string, IHandRequest> start;
         IHandRequest request;
         string room, code;
@@ -110,7 +114,7 @@ namespace HandViewerMod
         long due, retryAt;
         int failures;
         public HandSnapshot Snapshot { get; private set; }
-        public string Status { get; private set; } = "等待对局观战码";
+        public string Status { get; private set; } = WaitingRoomStatus;
         public int Revision { get; private set; }
         public bool Running => request != null;
         public bool IsStale { get; private set; }
@@ -122,23 +126,38 @@ namespace HandViewerMod
             DisposeRequest();
             room = id; code = watchCode; Snapshot = null; IsStale = false; failures = 0; retryAt = 0;
             dirty = viewing && !string.IsNullOrEmpty(id) && !string.IsNullOrEmpty(watchCode);
-            due = now; Status = !viewing ? "手牌已收起，暂停查询" : dirty ? "等待查询" : "等待对局观战码"; Revision++;
+            due = now;
+            Status = !viewing ? CollapsedStatus : dirty ? WaitingRefreshStatus : WaitingRoomStatus;
+            Revision++;
         }
         public void SetViewing(bool visible, long now)
         {
             if (viewing == visible) return;
             viewing = visible;
-            if (visible) Refresh(now);
+            if (visible)
+            {
+                // Reopening is an explicit refresh: drop the wait left by the previous sample
+                // or failure so the strip never paints a status it already left.
+                retryAt = 0;
+                Status = string.IsNullOrEmpty(room) || string.IsNullOrEmpty(code) ? WaitingRoomStatus : WaitingRefreshStatus;
+                Revision++;
+                Refresh(now);
+            }
             else
             {
                 DisposeRequest(); dirty = false;
                 IsStale = Snapshot != null;
-                Status = "手牌已收起，暂停查询"; Revision++;
+                Status = CollapsedStatus; Revision++;
             }
         }
         public void MarkDirty(long now)
         {
-            if (!viewing || string.IsNullOrEmpty(room) || string.IsNullOrEmpty(code)) return;
+            if (!viewing) return;
+            if (string.IsNullOrEmpty(room) || string.IsNullOrEmpty(code))
+            {
+                if (Status != WaitingRoomStatus) { Status = WaitingRoomStatus; Revision++; }
+                return;
+            }
             if (!dirty) due = now + 600;
             dirty = true;
             if (Snapshot != null && !IsStale) { IsStale = true; Revision++; }

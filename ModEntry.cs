@@ -30,7 +30,7 @@ namespace HandViewerMod
         int lastQueryRevision = -1;
         public static void Main() { SdkManifest.ExportSidecar(); Run(new ModEntry(), tag: "HandViewer"); }
         public override string Name => "手牌查看";
-        public const string ModVersion = "1.1.0";
+        public const string ModVersion = "1.1.1";
         public const string UserAgent = "AstralParty.Toys Mod/" + ModVersion + " (HandViewerMod)";
         public override string Version => ModVersion;
         public override void OnInitialize()
@@ -77,14 +77,18 @@ namespace HandViewerMod
 
             ReadConfig(isInitial: false);
 
-            if (endpoint != oldEndpoint || timeout != oldTimeout || query == null)
+            bool queryReplaced = endpoint != oldEndpoint || timeout != oldTimeout || query == null;
+            if (queryReplaced)
             {
                 query = new HandQueryController(code => new UnityHandRequest(endpoint, code, timeout));
+                lastQueryRevision = -1;
             }
 
-            if (ui != null && (doubleRow != oldDoubleRow || autoCollapseSeconds != oldCollapse || !enabled))
+            // The HUD keeps a controller reference, so it must be rebuilt together with the
+            // controller; otherwise it would drive an orphaned instance that is never ticked.
+            if (ui == null || queryReplaced || doubleRow != oldDoubleRow || autoCollapseSeconds != oldCollapse || !enabled)
             {
-                ui.Dispose();
+                ui?.Dispose();
                 ui = new HandViewerUi(query, doubleRow, autoCollapseSeconds);
             }
 
@@ -142,7 +146,7 @@ namespace HandViewerMod
                 if (lastRoom != roomId) { ui.Dispose(); lastRoom = roomId; }
                 query.SetRoom(roomId, code, now);
                 // HUD availability is independent of spectator-code and network availability.
-                try { ui.Poll(); lastUiError = null; }
+                try { ui.Poll(now); lastUiError = null; }
                 catch (Exception ex)
                 {
                     string error = ex.GetType().Name + ": " + ex.Message;

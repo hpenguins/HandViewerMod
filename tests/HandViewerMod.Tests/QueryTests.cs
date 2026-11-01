@@ -251,6 +251,54 @@ namespace HandViewerMod.Tests
                 Assert.NotNull(controller.Snapshot); Assert.Equal(1, calls);
             }
         }
+        [Fact] public void ReopeningAfterSampleQueriesWithoutWaitingForCooldown()
+        {
+            var request = new Request { Done = true };
+            using var controller = new HandQueryController(_ => request);
+            controller.SetRoom(Room, "test", 0); controller.SetViewing(true, 0);
+            controller.Tick(0); controller.Tick(1);
+            Assert.Equal("已采样", controller.Status);
+            controller.SetViewing(false, 2);
+            Assert.Equal(HandQueryController.CollapsedStatus, controller.Status);
+            controller.SetViewing(true, 3);
+            Assert.NotEqual(HandQueryController.CollapsedStatus, controller.Status);
+            controller.Tick(3);
+            Assert.True(controller.Running);
+            Assert.Equal("查询中…", controller.Status);
+            controller.Tick(4);
+            Assert.Equal("已采样", controller.Status);
+        }
+        [Fact] public void ReopeningAfterFailureRefreshesImmediately()
+        {
+            int calls = 0;
+            using var controller = new HandQueryController(_ => {
+                calls++;
+                return calls == 1 ? new Request { Done = true, Code = 503, RetryAfter = "60" } : new Request();
+            });
+            controller.SetRoom(Room, "test", 0); controller.SetViewing(true, 0);
+            controller.Tick(0); controller.Tick(1);
+            Assert.Equal(1, calls); Assert.Contains("503", controller.Status);
+            controller.SetViewing(false, 2);
+            Assert.Equal(HandQueryController.CollapsedStatus, controller.Status);
+            controller.SetViewing(true, 3);
+            Assert.NotEqual(HandQueryController.CollapsedStatus, controller.Status);
+            controller.Tick(3);
+            Assert.Equal(2, calls); Assert.Equal("查询中…", controller.Status);
+        }
+        [Fact] public void ExpandedStripNeverReportsCollapsedWithoutRoomOrCode()
+        {
+            int calls = 0;
+            using var controller = new HandQueryController(_ => { calls++; return new Request(); });
+            controller.SetRoom(Room, "test", 0); controller.SetViewing(true, 0); controller.Tick(0);
+            controller.SetViewing(false, 1);
+            Assert.Equal(HandQueryController.CollapsedStatus, controller.Status);
+            controller.SetRoom(null, null, 2);
+            controller.SetViewing(true, 3);
+            Assert.NotEqual(HandQueryController.CollapsedStatus, controller.Status);
+            controller.MarkDirty(4); controller.Tick(5);
+            Assert.Equal(1, calls);
+            Assert.NotEqual(HandQueryController.CollapsedStatus, controller.Status);
+        }
         [Fact] public void EmptyCardChangeStillNotifiesSdkSubscribers()
         {
             int calls = 0;

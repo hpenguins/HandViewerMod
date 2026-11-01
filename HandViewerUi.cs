@@ -24,6 +24,7 @@ namespace HandViewerMod
             public string Signature;
             public float Height, ContentWidth, Offset;
             public bool Anchored;
+            public bool Shown;
             public Vector2 HeadTop, HeadBottom, StarRight;
             public string LastRenderError;
             public float PanelWidth, PanelHeight;
@@ -49,9 +50,11 @@ namespace HandViewerMod
             bool visible = false;
             foreach (var binding in bindings)
             {
-                if (!binding.Model.Open || binding.Button.isDisposed || !binding.Button.onStage) continue;
+                // The expanded strip is what the player sees: follow it instead of the
+                // triangle handle so a visible strip can never report "collapsed".
+                if (!binding.Model.Open || binding.Strip == null || binding.Strip.isDisposed || !binding.Strip.onStage) continue;
                 bool shown = true;
-                for (GObject node = binding.Button; node != null; node = node.parent)
+                for (GObject node = binding.Strip; node != null; node = node.parent)
                     if (!node.visible || node.scaleX == 0 || node.scaleY == 0) { shown = false; break; }
                 if (shown) { visible = true; break; }
             }
@@ -70,7 +73,7 @@ namespace HandViewerMod
             label.textFormat = label.textFormat;
             return label;
         }
-        public void Poll()
+        public void Poll(long now)
         {
             var root = GRoot.inst;
             var panel = Find(root, 0);
@@ -134,6 +137,7 @@ namespace HandViewerMod
             bool hudVisible = panel.visible && panel.scaleX != 0 && panel.scaleY != 0
                 && panel.com_BattlePlayer.visible && panel.com_BattlePlayer.scaleX != 0
                 && panel.com_BattlePlayer.scaleY != 0 && panel.com_BattlePlayer.touchableAll;
+            bool expanded = false;
             foreach (var binding in bindings)
             {
                 long id = binding.Owner.PlayerData?.player.Id ?? 0;
@@ -141,9 +145,19 @@ namespace HandViewerMod
                 var info = binding.Owner.com_player as UICom_PlayerInfo;
                 bool visible = hudVisible && id != 0 && binding.Owner.visible && binding.Owner.scaleX != 0
                     && binding.Owner.scaleY != 0 && info?.com_Head != null && info.list_Level != null;
+                binding.Shown = visible;
                 binding.Button.visible = visible;
                 binding.Strip.visible = visible && binding.Model.Open;
-                if (!visible) continue;
+                if (visible && binding.Model.Open) expanded = true;
+            }
+            // Publish the whole-frame state before rendering: the placeholder text below reads
+            // query.Status, so an expanded strip must never paint the status of a paused query.
+            query.SetViewing(expanded, now);
+            foreach (var binding in bindings)
+            {
+                if (!binding.Shown) continue;
+                long id = binding.Model.PlayerId;
+                var info = binding.Owner.com_player as UICom_PlayerInfo;
                 var head = info.com_Head;
                 // Capture child layout once: hover/selection animations must not reposition our controls.
                 if (!binding.Anchored || binding.PanelWidth != panel.width || binding.PanelHeight != panel.height)

@@ -86,4 +86,46 @@ public class HandStripTests
         models[1].Toggle();
         Assert.True(models[0].Open); Assert.False(models[1].Open); Assert.True(models[2].Open); Assert.True(models[3].Open);
     }
+    [Fact]
+    public void EntryCollapseFollowsAutoCollapseSetting()
+    {
+        Assert.Equal(HandStripModel.AutoExpandDisplaySeconds, HandStripModel.EntryCollapseSeconds(5));
+        Assert.Equal(30, HandStripModel.AutoExpandDisplaySeconds);
+        Assert.Equal(0, HandStripModel.EntryCollapseSeconds(0));
+    }
+    [Fact]
+    public void AutoExpandedHandCollapsesAfterThirtySeconds()
+    {
+        var model = new HandStripModel(); model.Bind(2);
+        model.OpenForEntry(1000, HandStripModel.EntryCollapseSeconds(5));
+        Assert.True(model.Open);
+        model.Tick(30999); Assert.True(model.Open);
+        model.Tick(31000); Assert.False(model.Open);
+    }
+    [Fact]
+    public void AutoExpandedHandStaysOpenWhenAutoCollapseDisabled()
+    {
+        var model = new HandStripModel(); model.Bind(2);
+        model.OpenForEntry(0, HandStripModel.EntryCollapseSeconds(0));
+        Assert.True(model.Open);
+        model.Tick(long.MaxValue); Assert.True(model.Open);
+    }
+    [Fact]
+    public void OpenForEntryIsIdempotentAndSkipsEmptyOwner()
+    {
+        var model = new HandStripModel(); model.Bind(0);
+        model.OpenForEntry(0, 30); Assert.False(model.Open);
+        model.Bind(3); model.OpenForEntry(0, 30); model.OpenForEntry(1000, 30);
+        Assert.True(model.Open);
+        model.Tick(30999); Assert.True(model.Open);
+        model.Tick(31000); Assert.False(model.Open);
+    }
+    [Fact]
+    public void OwnHandIsExcludedFromAutoExpand()
+    {
+        var self = new HandStripModel(); self.Bind(100);
+        var other = new HandStripModel(); other.Bind(101);
+        Assert.True(self.IsOwn(100)); Assert.False(other.IsOwn(100));
+        Assert.False(self.IsOwn(0)); Assert.False(other.IsOwn(0));
+    }
 }

@@ -10,7 +10,7 @@ using party.model;
 using party.protocol;
 
 [assembly: ModManifest("手牌查看", HandViewerMod.ModEntry.ModVersion, "CesiumLoader",
-    "升星右侧三角展开四人独立手牌条，仅展开可见时用观战码查询；可配置自动收回，同牌角标计数",
+    "升星右侧三角展开四人独立手牌条，仅展开可见时用观战码查询；可配置自动收回、进房自动展开他人，同牌角标计数",
     Permissions = ModPermission.ReadGameState | ModPermission.UI | ModPermission.Network, SdkVersion = "2.8.6")]
 
 namespace HandViewerMod
@@ -24,23 +24,25 @@ namespace HandViewerMod
         int timeout;
         bool doubleRow;
         int autoCollapseSeconds;
+        bool autoExpandOnEnter;
         long nextPoll;
         string lastRoom;
         string lastRoomDiagnostic, lastUiError;
         int lastQueryRevision = -1;
         public static void Main() { SdkManifest.ExportSidecar(); Run(new ModEntry(), tag: "HandViewer"); }
         public override string Name => "手牌查看";
-        public const string ModVersion = "1.1.1";
+        public const string ModVersion = "1.2.0";
         public const string UserAgent = "AstralParty.Toys Mod/" + ModVersion + " (HandViewerMod)";
         public override string Version => ModVersion;
         public override void OnInitialize()
         {
             ReadConfig(isInitial: true);
             query = new HandQueryController(code => new UnityHandRequest(endpoint, code, timeout));
-            ui = new HandViewerUi(query, doubleRow, autoCollapseSeconds);
+            ui = new HandViewerUi(query, doubleRow, autoCollapseSeconds, autoExpandOnEnter);
             GameEvents.HandChanged += HandChanged;
             GameEvents.HeroAttrUpdated += AttrChanged;
-            SdkLog.Info("HandViewer", "已启用：手牌展开可见时查询，全部收起后暂停；自动收回 " + autoCollapseSeconds + " 秒（0 为不收回）；观战码不写日志。");
+            SdkLog.Info("HandViewer", "已启用：手牌展开可见时查询，全部收起后暂停；自动收回 " + autoCollapseSeconds + " 秒（0 为不收回）"
+                + "；进房自动展开 " + (autoExpandOnEnter ? "开" : "关") + "；观战码不写日志。");
         }
 
         private void ReadConfig(bool isInitial = false)
@@ -51,11 +53,12 @@ namespace HandViewerMod
             timeout = Math.Max(5, Math.Min(60, Config?.GetInt("TimeoutSeconds", 20) ?? 20));
             doubleRow = Config?.GetBool("DoubleRow", true) ?? true;
             autoCollapseSeconds = Math.Max(0, Config?.GetInt("AutoCollapseSeconds", 5) ?? 5);
+            autoExpandOnEnter = Config?.GetBool("AutoExpandOnEnter", false) ?? false;
 
             if (isInitial && Config != null)
             {
                 HandViewerConfigDocs.Apply(Config);
-                if (!Config.Has("Enabled"))
+                if (!Config.Has("Enabled") || !Config.Has("AutoExpandOnEnter"))
                 {
                     Config.Set("Enabled", enabled);
                     Config.Set("AutoRefresh", autoRefresh);
@@ -63,6 +66,7 @@ namespace HandViewerMod
                     Config.Set("TimeoutSeconds", timeout);
                     Config.Set("DoubleRow", doubleRow);
                     Config.Set("AutoCollapseSeconds", autoCollapseSeconds);
+                    Config.Set("AutoExpandOnEnter", autoExpandOnEnter);
                 }
                 Config.SaveIfDirty();
             }
@@ -74,6 +78,7 @@ namespace HandViewerMod
             int oldTimeout = timeout;
             bool oldDoubleRow = doubleRow;
             int oldCollapse = autoCollapseSeconds;
+            bool oldAutoExpand = autoExpandOnEnter;
 
             ReadConfig(isInitial: false);
 
@@ -86,13 +91,15 @@ namespace HandViewerMod
 
             // The HUD keeps a controller reference, so it must be rebuilt together with the
             // controller; otherwise it would drive an orphaned instance that is never ticked.
-            if (ui == null || queryReplaced || doubleRow != oldDoubleRow || autoCollapseSeconds != oldCollapse || !enabled)
+            if (ui == null || queryReplaced || doubleRow != oldDoubleRow || autoCollapseSeconds != oldCollapse
+                || autoExpandOnEnter != oldAutoExpand || !enabled)
             {
                 ui?.Dispose();
-                ui = new HandViewerUi(query, doubleRow, autoCollapseSeconds);
+                ui = new HandViewerUi(query, doubleRow, autoCollapseSeconds, autoExpandOnEnter);
             }
 
-            SdkLog.Info("HandViewer", "手牌查看配置已热重载: enabled=" + enabled + ", autoRefresh=" + autoRefresh + ", doubleRow=" + doubleRow);
+            SdkLog.Info("HandViewer", "手牌查看配置已热重载: enabled=" + enabled + ", autoRefresh=" + autoRefresh + ", doubleRow=" + doubleRow
+                + ", autoCollapseSeconds=" + autoCollapseSeconds + ", autoExpandOnEnter=" + autoExpandOnEnter);
         }
         static long Now => DateTime.UtcNow.Ticks / 10000;
         void HandChanged(long id, IReadOnlyList<CardInfo> cards) { if (enabled && autoRefresh) query?.MarkDirty(Now); }
@@ -145,6 +152,7 @@ namespace HandViewerMod
                 }
                 if (lastRoom != roomId) { ui.Dispose(); lastRoom = roomId; }
                 query.SetRoom(roomId, code, now);
+                ui.RoomId = roomId;
                 // HUD availability is independent of spectator-code and network availability.
                 try { ui.Poll(now); lastUiError = null; }
                 catch (Exception ex)

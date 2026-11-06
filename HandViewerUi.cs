@@ -33,9 +33,13 @@ namespace HandViewerMod
         readonly HandQueryController query;
         string lastDiagnostic;
         public string UnavailableReason { get; set; }
+        public string RoomId { get; set; }
         readonly int handRows, autoCollapseSeconds;
-        public HandViewerUi(HandQueryController query, bool doubleRow, int autoCollapseSeconds)
-        { this.query = query; this.handRows = doubleRow ? 2 : 1; this.autoCollapseSeconds = autoCollapseSeconds; }
+        readonly bool autoExpandOnEnter;
+        string autoExpandedRoom;
+        public HandViewerUi(HandQueryController query, bool doubleRow, int autoCollapseSeconds, bool autoExpandOnEnter = false)
+        { this.query = query; this.handRows = doubleRow ? 2 : 1; this.autoCollapseSeconds = autoCollapseSeconds;
+          this.autoExpandOnEnter = autoExpandOnEnter; }
         public void Tick(long now)
         {
             foreach (var binding in bindings)
@@ -137,6 +141,28 @@ namespace HandViewerMod
             bool hudVisible = panel.visible && panel.scaleX != 0 && panel.scaleY != 0
                 && panel.com_BattlePlayer.visible && panel.com_BattlePlayer.scaleX != 0
                 && panel.com_BattlePlayer.scaleY != 0 && panel.com_BattlePlayer.touchableAll;
+            // 进入对局自动展开他人手牌（不含自己），每局只展开一次：
+            // 配置了自动收回时展示 30 秒后自动收回，未配置时不自动收回。
+            if (autoExpandOnEnter && hudVisible && !string.IsNullOrEmpty(RoomId) && RoomId != autoExpandedRoom)
+            {
+                long selfId = SelfId();
+                if (selfId > 0)
+                {
+                    int seconds = HandStripModel.EntryCollapseSeconds(autoCollapseSeconds);
+                    int opened = 0;
+                    foreach (var binding in bindings)
+                    {
+                        long id = binding.Owner.PlayerData?.player.Id ?? 0;
+                        if (binding.Model.PlayerId != id) { binding.Model.Bind(id); binding.Signature = null; }
+                        if (id == 0 || binding.Model.IsOwn(selfId) || IsSelfPlayer(id)) continue;
+                        binding.Model.OpenForEntry(now, seconds);
+                        opened++;
+                    }
+                    autoExpandedRoom = RoomId;
+                    SdkLog.Info("HandViewer", "[hud] 进入对局自动展开他人手牌: room=" + RoomId + " opened=" + opened + " collapse=" + seconds + "秒");
+                    if (opened > 0 && string.IsNullOrEmpty(UnavailableReason)) query.Refresh(now);
+                }
+            }
             bool expanded = false;
             foreach (var binding in bindings)
             {
@@ -306,6 +332,42 @@ namespace HandViewerMod
                 try { binding.Strip.RemoveFromParent(); binding.Strip.Dispose(); } catch { }
             }
             bindings.Clear();
+        }
+        static long SelfId()
+        {
+            try
+            {
+                var gm = GameLogic.GameLogicManager.inst;
+                if (gm == null) return 0;
+                try
+                {
+                    if (gm.account != null)
+                    {
+                        long id = gm.account.GetPlayerID();
+                        if (id > 0) return id;
+                    }
+                }
+                catch { }
+                try
+                {
+                    var self = gm.battle != null ? gm.battle.GetSelfPlayerData() : null;
+                    if (self != null && self.player != null) return self.player.Id;
+                }
+                catch { }
+            }
+            catch { }
+            return 0;
+        }
+        static bool IsSelfPlayer(long id)
+        {
+            if (id == 0) return false;
+            try
+            {
+                var gm = GameLogic.GameLogicManager.inst;
+                if (gm != null && gm.account != null && gm.account.IsSelf(id)) return true;
+            }
+            catch { }
+            return false;
         }
         public void Dispose() { ClearBindings(); query.SetViewing(false, DateTime.UtcNow.Ticks / 10000); }
     }

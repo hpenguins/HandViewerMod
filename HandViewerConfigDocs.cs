@@ -39,6 +39,11 @@ namespace HandViewerMod
                 "手牌展開後自動收回的秒數；0 表示不自動收回，預設 5。",
                 "Seconds before the hand list collapses automatically; 0 disables it (default 5).",
                 "手札一覧を自動で閉じるまでの秒数。0 で無効（既定 5）。"));
+            changed |= config.Describe("AutoExpandOnEnter", D(
+                "进入对局后自动展开他人手牌（不含自己的），每局只展开一次；配置了自动收回（AutoCollapseSeconds 大于 0）时自动展开的手牌展示 30 秒后自动收回，未配置自动收回时不自动收回，默认关闭。",
+                "進入對局後自動展開他人手牌（不含自己的），每局只展開一次；有配置自動收回（AutoCollapseSeconds 大於 0）時自動展開的手牌展示 30 秒後自動收回，未配置自動收回時不自動收回，預設關閉。",
+                "Automatically expand other players' hands (never your own) once per match when entering; when auto-collapse is enabled (AutoCollapseSeconds > 0) the auto-expanded hands collapse after 30 seconds, otherwise they stay open (default off).",
+                "対局開始時に他プレイヤーの手札を自動で展開します（自分の手札は除く）。1 対局につき 1 回のみ。自動で閉じる（AutoCollapseSeconds > 0）が有効な場合は 30 秒後に自動で閉じ、無効な場合は閉じません（既定: オフ）。"));
             return changed;
         }
 

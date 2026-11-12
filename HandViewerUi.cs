@@ -77,6 +77,25 @@ namespace HandViewerMod
             label.textFormat = label.textFormat;
             return label;
         }
+        /// <summary>
+        /// 框内文字: 固定尺寸 + 自动折行 + 自动缩字号, 保证文字不会溢出边框。
+        /// (FairyGUI 的 GTextField 默认 autoSize = Both 且不换行, 直接放文字会撑出边框。)
+        /// </summary>
+        static GTextField TextInBox(string text, float width, float height, int size, int minSize = 10,
+            AlignType align = AlignType.Left)
+        {
+            var layout = StatusTextLayout.Fit(text, width, height, size, minSize);
+            var label = new GTextField { touchable = false };
+            label.autoSize = AutoSizeType.None; // 固定尺寸: 由 StatusTextLayout 负责折行与字号
+            label.SetSize(width, height);
+            label.text = layout.Text;
+            label.align = align;
+            label.verticalAlign = VertAlignType.Middle;
+            label.textFormat.size = layout.FontSize;
+            label.textFormat.color = Color.white;
+            label.textFormat = label.textFormat;
+            return label;
+        }
         public void Poll(long now)
         {
             var root = GRoot.inst;
@@ -220,7 +239,7 @@ namespace HandViewerMod
                 {
                     string signature = HandStripModel.Signature(hand) + "/" + UnavailableReason + (hand == null ? "/" + query.Status : "");
                     if (signature != binding.Signature || binding.Height != height)
-                    { Render(binding, hand, height); binding.Signature = signature; }
+                    { Render(binding, hand, height, available); binding.Signature = signature; }
                     binding.Strip.SetSize(Math.Min(available, binding.ContentWidth), height);
                     binding.Offset = Math.Min(binding.Offset, Math.Max(0, binding.ContentWidth - binding.Strip.width));
                     binding.Content.x = -binding.Offset;
@@ -228,7 +247,7 @@ namespace HandViewerMod
             }
             Diagnose("已挂载升星右侧三角入口与四人独立手牌条");
         }
-        void Render(Binding binding, PlayerHand hand, float height)
+        void Render(Binding binding, PlayerHand hand, float height, float available)
         {
             binding.Content.RemoveChildren(0, -1, true);
             binding.Height = height; binding.Offset = 0;
@@ -236,11 +255,15 @@ namespace HandViewerMod
             if (groups.Count == 0)
             {
                 string text = hand == null ? (UnavailableReason ?? query.Status) : !hand.handKnown ? "手牌未知" : "空手牌（0）";
-                float width = hand == null || !string.IsNullOrEmpty(UnavailableReason) ? 290 : 150;
+                bool wide = hand == null || !string.IsNullOrEmpty(UnavailableReason);
+                // 状态文案可能很长: 盒子最多铺到可用宽度, 再由 TextInBox 折行缩字号, 不让文字撑出边框。
+                float width = wide ? Math.Min(520f, Math.Max(160f, available)) : 150f;
+                width = Math.Max(60f, Math.Min(width, available));
                 var bg = new GGraph(); bg.SetSize(width, height);
                 bg.DrawRect(width, height, 1, Color.white, new Color(0.04f, 0.06f, 0.1f, 0.92f));
                 bg.touchable = false; binding.Content.AddChild(bg);
-                var placeholder = Text(text, width - 8, height, 18); placeholder.x = 4;
+                var placeholder = TextInBox(text, width - 10, height - 4, 18, 10);
+                placeholder.x = 5; placeholder.y = 2;
                 binding.Content.AddChild(placeholder); binding.ContentWidth = width;
                 binding.Content.SetSize(width, height); return;
             }
@@ -295,7 +318,9 @@ namespace HandViewerMod
                     catch (Exception imageError)
                     {
                         SdkLog.Warn("HandViewer", "[card] 卡图失败 id=" + data.cardId + " " + imageError.GetType().Name + ": " + imageError.Message);
-                        cell.AddChild(Text("卡图不可用", width, cardHeight, 10));
+                        // 卡位很窄, 这里只放一个占位符, 完整原因留给 tooltip。
+                        cell.tooltips = "卡图不可用 id=" + data.cardId + "\n" + imageError.GetType().Name + ": " + imageError.Message;
+                        cell.AddChild(TextInBox("?", width, cardHeight, 10, 8, AlignType.Center));
                     }
                 }
                 cell.SetSize(width, cardHeight); cell.SetXY(x, y);
@@ -306,8 +331,7 @@ namespace HandViewerMod
                     var bg = new GGraph(); bg.SetSize(badgeWidth, badgeHeight); bg.SetXY(Math.Max(0, width - badgeWidth), 0);
                     bg.DrawRect(badgeWidth, badgeHeight, 1, Color.white, new Color(0.05f, 0.07f, 0.12f, 0.95f)); bg.touchable = false;
                     cell.AddChild(bg);
-                    var count = Text(group.Count.ToString(), badgeWidth, badgeHeight, 11);
-                    count.align = AlignType.Center; count.verticalAlign = VertAlignType.Middle;
+                    var count = TextInBox(group.Count.ToString(), badgeWidth, badgeHeight, 11, 8, AlignType.Center);
                     count.SetXY(bg.x, 0); cell.AddChild(count);
                 }
                 binding.Content.AddChild(cell);

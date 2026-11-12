@@ -31,7 +31,7 @@ namespace HandViewerMod
         int lastQueryRevision = -1;
         public static void Main() { SdkManifest.ExportSidecar(); Run(new ModEntry(), tag: "HandViewer"); }
         public override string Name => "手牌查看";
-        public const string ModVersion = "1.2.0";
+        public const string ModVersion = "1.2.1";
         public const string UserAgent = "AstralParty.Toys Mod/" + ModVersion + " (HandViewerMod)";
         public override string Version => ModVersion;
         public override void OnInitialize()

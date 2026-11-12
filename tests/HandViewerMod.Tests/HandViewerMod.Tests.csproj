@@ -18,6 +18,7 @@
     <Compile Include="../../QueryController.cs" Link="QueryController.cs" />
     <Compile Include="../../ServiceAddress.cs" Link="ServiceAddress.cs" />
     <Compile Include="../../HandStripModel.cs" Link="HandStripModel.cs" />
+    <Compile Include="../../StatusTextLayout.cs" Link="StatusTextLayout.cs" />
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
       <_Parameter1>ModSourceRoot</_Parameter1>
       <_Parameter2>$(MSBuildProjectDirectory)/../..</_Parameter2>
